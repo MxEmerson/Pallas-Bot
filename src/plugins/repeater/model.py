@@ -1,9 +1,7 @@
 from typing import Generator, List, Optional, Union, Tuple, Dict, Any
 from functools import cached_property, cmp_to_key
 from dataclasses import dataclass
-from nonebot import get_driver
-from collections import defaultdict
-from urllib import parse
+from collections import defaultdict, deque
 
 import jieba_fast.analyse
 import threading
@@ -19,12 +17,9 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 
 from src.common.config import BotConfig
 
-username = parse.quote_plus('PallasBot')
-plain_password = get_driver().config.mongodb_password
-password = parse.quote_plus(plain_password)
-mongo_client = pymongo.MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017/?authMechanism=DEFAULT&authSource=PallasBot")
-mongo_db = mongo_client['PallasBot']
+mongo_client = pymongo.MongoClient('127.0.0.1', 27017, w=0)
 
+mongo_db = mongo_client['PallasBot']
 
 message_mongo = mongo_db['message']
 message_mongo.create_index(name='time_index',
@@ -117,6 +112,8 @@ class Chat:
 
     blacklist_answer = defaultdict(set)
     blacklist_answer_reserve = defaultdict(set)
+
+    rencent_speak = deque(maxlen=5)    # 主动发言记录，避免重复内容
 
     def __init__(self, data: Union[ChatData, GroupMessageEvent, PrivateMessageEvent]):
 
@@ -308,22 +305,29 @@ class Chat:
                     'reply': '[PallasBot: Speak]',
                     'reply_keywords': '[PallasBot: Speak]',
                 })
-            
+
             bot_id = random.choice(
                 [bid for bid in group_replies.keys() if bid])
 
             ban_keywords = Chat._find_ban_keywords(
                 context='', group_id=group_id)
-            available_messages = [msg for msg in Chat._message_dict[group_id]
-                                  if msg['keywords'] not in ban_keywords]
+
+            def msg_filter(msg: Dict[str, Any]) -> bool:
+                return msg['keywords'] not in ban_keywords \
+                    and msg['raw_message'] not in Chat.rencent_speak
+            available_messages = list(
+                filter(msg_filter, Chat._message_dict[group_id]))
             if not available_messages:
                 continue
-            
+
             config = BotConfig(bot_id, group_id)
-            pretend_msg = list(filter(lambda msg: msg['user_id'] == config.taken_name(), available_messages))
-            rand_message = pretend_msg[0] if pretend_msg else available_messages[0]
-            speak = rand_message["raw_message"]
-            
+            pretend_msg = list(
+                filter(lambda msg: msg['user_id'] == config.taken_name(), available_messages))
+            rand_message = random.choice(
+                pretend_msg if pretend_msg else available_messages)
+            speak = rand_message['raw_message']
+            Chat.rencent_speak.append(speak)
+
             with Chat._reply_lock:
                 group_replies[bot_id].append({
                     'time': int(cur_time),
@@ -676,8 +680,6 @@ class Chat:
             # 别的群的 at, 忽略
             elif '[CQ:at,qq=' in sample_msg:
                 continue
-            elif self.config.is_banned_group(answer['group_id']):   # 跳过开启隔离模式的群内回复
-                continue
             elif is_drunk and count > answer_count_threshold:
                 candidate_append(candidate_answers, answer)
             else:   # 有这么 N 个群都有相同的回复，就作为全局回复
@@ -772,7 +774,7 @@ class Chat:
         '''
 
         cur_time = int(time.time())
-        expiration = cur_time - 100 * 24 * 3600  # 15 天前
+        expiration = cur_time - 15 * 24 * 3600  # 15 天前
 
         context_mongo.delete_many({
             'time': {'$lt': expiration},
