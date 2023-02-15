@@ -1,7 +1,9 @@
 from typing import Generator, List, Optional, Union, Tuple, Dict, Any
 from functools import cached_property, cmp_to_key
 from dataclasses import dataclass
-from collections import defaultdict, deque
+from nonebot import get_driver
+from collections import defaultdict
+from urllib import parse
 
 import jieba_fast.analyse
 import threading
@@ -17,8 +19,10 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 
 from src.common.config import BotConfig
 
-mongo_client = pymongo.MongoClient('127.0.0.1', 27017, w=0)
-
+username = parse.quote_plus('PallasBot')
+plain_password = get_driver().config.mongodb_password
+password = parse.quote_plus(plain_password)
+mongo_client = pymongo.MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017/?authMechanism=DEFAULT&authSource=PallasBot")
 mongo_db = mongo_client['PallasBot']
 
 message_mongo = mongo_db['message']
