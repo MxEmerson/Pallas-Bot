@@ -2,7 +2,7 @@ from typing import Generator, List, Optional, Union, Tuple, Dict, Any
 from functools import cached_property, cmp_to_key
 from dataclasses import dataclass
 from nonebot import get_driver
-from collections import defaultdict
+from collections import defaultdict, deque
 from urllib import parse
 
 import jieba_fast.analyse
