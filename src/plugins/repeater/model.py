@@ -1,7 +1,9 @@
 from typing import Generator, List, Optional, Union, Tuple, Dict, Any
 from functools import cached_property, cmp_to_key
 from dataclasses import dataclass
+from nonebot import get_driver
 from collections import defaultdict
+from urllib import parse
 
 import jieba_fast.analyse
 import threading
@@ -17,9 +19,12 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 
 from src.common.config import BotConfig
 
-mongo_client = pymongo.MongoClient('127.0.0.1', 27017, w=0)
-
+username = parse.quote_plus('PallasBot')
+plain_password = get_driver().config.mongodb_password
+password = parse.quote_plus(plain_password)
+mongo_client = pymongo.MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017/?authMechanism=DEFAULT&authSource=PallasBot")
 mongo_db = mongo_client['PallasBot']
+
 
 message_mongo = mongo_db['message']
 message_mongo.create_index(name='time_index',
@@ -671,6 +676,8 @@ class Chat:
             # 别的群的 at, 忽略
             elif '[CQ:at,qq=' in sample_msg:
                 continue
+            elif self.config.is_banned_group(answer['group_id']):   # 跳过开启隔离模式的群内回复
+                continue
             elif is_drunk and count > answer_count_threshold:
                 candidate_append(candidate_answers, answer)
             else:   # 有这么 N 个群都有相同的回复，就作为全局回复
@@ -765,7 +772,7 @@ class Chat:
         '''
 
         cur_time = int(time.time())
-        expiration = cur_time - 15 * 24 * 3600  # 15 天前
+        expiration = cur_time - 100 * 24 * 3600  # 15 天前
 
         context_mongo.delete_many({
             'time': {'$lt': expiration},
