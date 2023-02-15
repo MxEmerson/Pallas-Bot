@@ -2,8 +2,10 @@ import pymongo
 import time
 from pymongo.collection import Collection
 from collections import defaultdict
+from urllib import parse
 from abc import ABC
 from typing import Any, Optional
+from nonebot import get_driver
 
 
 class Config(ABC):
@@ -14,7 +16,10 @@ class Config(ABC):
     @classmethod
     def _get_config_mongo(cls) -> Collection:
         if cls._config_mongo is None:
-            mongo_client = pymongo.MongoClient('127.0.0.1', 27017, w=0)
+            username = parse.quote_plus('PallasBot')
+            plain_password = get_driver().config.mongodb_password
+            password = parse.quote_plus(plain_password)
+            mongo_client = pymongo.MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017/?authMechanism=DEFAULT&authSource=PallasBot")
             mongo_db = mongo_client['PallasBot']
             cls._config_mongo = mongo_db[cls._table]
             cls._config_mongo.create_index(name='{}_index'.format(cls._key),
@@ -88,6 +93,20 @@ class BotConfig(Config):
             {'$push': {'admins': user_id}},
             upsert=True
         )
+
+    def is_banned_account(self, user_id: int) -> bool:
+        '''
+        是否为黑名单账号
+        '''
+        banned_accounts = self._find_key('banned_accounts')
+        return user_id in banned_accounts if banned_accounts else False
+
+    def is_banned_group(self, group_id: int) -> bool:
+        '''
+        该群隔离模式是否开启
+        '''
+        banned_groups = self._find_key('banned_groups')
+        return group_id in banned_groups if banned_groups else False
 
     _cooldown_data = {}
 
@@ -194,7 +213,7 @@ class GroupConfig(Config):
         '''
         if self.group_id not in GroupConfig._roulette_mode:
             mode = self._find_key('roulette_mode')
-            GroupConfig._roulette_mode[self.group_id] = mode if mode is not None else 0
+            GroupConfig._roulette_mode[self.group_id] = mode if mode is not None else 1
 
         return GroupConfig._roulette_mode[self.group_id]
 
