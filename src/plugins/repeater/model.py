@@ -746,6 +746,9 @@ class Chat:
             # 别的群的 at, 忽略
             elif '[CQ:at,qq=' in sample_msg:
                 continue
+            # 跳过开启隔离模式的群内回复
+            elif self.config.is_banned_group(answer['group_id']):
+                continue
             elif is_drunk and count > answer_count_threshold:
                 candidate_append(candidate_answers, answer)
             else:   # 有这么 N 个群都有相同的回复，就作为全局回复

@@ -84,6 +84,12 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
         group_message.append(message_id)
         if len(group_message) > 100:
             group_message = group_message[:-10]
+        
+        user_id = event.user_id
+        config = BotConfig(event.self_id, event.group_id)
+        if config.is_banned_account(user_id):
+            logger.info('user [{}] is banned from learn'.format(user_id))
+            to_learn = False
 
     chat: Chat = Chat(event)
 

@@ -177,6 +177,20 @@ class BotConfig(Config):
         '''
         admins = self._find('admins')
         return user_id in admins if admins else False
+    
+    def is_banned_account(self, user_id: int) -> bool:
+        '''
+        是否为黑名单账号
+        '''
+        banned_accounts = self._find('banned_accounts')
+        return user_id in banned_accounts if banned_accounts else False
+
+    def is_banned_group(self, group_id: int) -> bool:
+        '''
+        该群隔离模式是否开启
+        '''
+        banned_groups = self._find('banned_groups')
+        return group_id in banned_groups if banned_groups else False
 
     def is_cooldown(self, action_type: str) -> bool:
         '''
